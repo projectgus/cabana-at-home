@@ -4,8 +4,8 @@ import PropTypes from 'prop-types';
 import cx from 'classnames';
 import { createWriteStream } from 'streamsaver';
 import Panda from '@commaai/pandajs';
-import CommaAuth, { storage as CommaAuthStorage, config as AuthConfig } from '@commaai/my-comma-auth';
-import { raw as RawDataApi, drives as DrivesApi } from '@commaai/comma-api';
+import CommaAuth, { storage as CommaAuthStorage, config as AuthConfig } from './local_hacks/auth';
+import { raw as RawDataApi, drives as DrivesApi } from './local_hacks/api';
 import { timeout, interval } from 'thyming';
 import {
   USE_UNLOGGER,

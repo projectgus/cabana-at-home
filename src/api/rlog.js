@@ -1,5 +1,5 @@
-import { raw as RawDataApi, request as Request } from '@commaai/comma-api';
-import CommaAuth from '@commaai/my-comma-auth';
+import { raw as RawDataApi, request as Request } from '../local_hacks/api';
+import CommaAuth from '../local_hacks/auth';
 import request from 'simple-get';
 
 const urlStore = {};

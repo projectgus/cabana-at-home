@@ -1,6 +1,6 @@
 import qs from 'query-string';
-import CommaAuth, { config as AuthConfig, storage as AuthStorage } from '@commaai/my-comma-auth';
-import { auth as AuthApi, request as Request } from '@commaai/comma-api';
+import CommaAuth, { config as AuthConfig, storage as AuthStorage } from './local_hacks/auth';
+import { auth as AuthApi, request as Request } from './local_hacks/api';
 import Sentry from './logging/Sentry';
 import { getUrlParameter, modifyQueryParameters } from './utils/url';
 import { GITHUB_AUTH_TOKEN_KEY } from './config';

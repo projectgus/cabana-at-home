@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { StyleSheet, css } from 'aphrodite/no-important';
-import { video as VideoApi } from '@commaai/comma-api';
+import { video as VideoApi } from '../local_hacks/api';
 
 import HLS from './HLS';
 import RouteSeeker from './RouteSeeker/RouteSeeker';
