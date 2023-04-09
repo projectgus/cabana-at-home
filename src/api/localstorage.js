@@ -1,7 +1,7 @@
 import DBC from '../models/can/dbc';
 
 export function fetchPersistedDbc(routeName) {
-  const maybeDbc = window.localStorage.getItem(routeName);
+  const maybeDbc = window.localStorage.getItem("persisted-dbc"); // HACK: one for all routes
   if (maybeDbc !== null) {
     const { dbcFilename, dbcText } = JSON.parse(maybeDbc);
     const dbc = new DBC(dbcText);
@@ -16,7 +16,7 @@ export function persistDbc(routeName, { dbcFilename, dbc }) {
     dbcFilename,
     dbcText: dbc.text()
   });
-  window.localStorage.setItem(routeName, dbcJson);
+  window.localStorage.setItem("persisted-dbc", dbcJson);  // HACK: one for all routes
 }
 
 const GITHUB_AUTH_TOKEN_LOCALSTORAGE_KEY = 'gh_auth_token';
