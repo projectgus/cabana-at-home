@@ -68,16 +68,19 @@ def read_csv_messages(csv_file):
     The annoying property here is the need to sort the events by timestamp, as
     in busy periods bus 0 & 1 will sometimes produce out of order log entries.
     """
+
     def unsorted():
         with open(csv_file, encoding="ascii") as csvf:
             reader = csv.reader(csvf)
             next(reader)  # skip the header
 
             for line in reader:
-                yield (int(line[0]) * 1000,  # ts (ns)
-                       int(line[3]),  # bus
-                       int(line[1], 16),  # address
-                       bytes([int(b, 16) for b in line[5:]]))  # data
+                yield (
+                    int(line[0]) * 1000,  # ts (ns)
+                    int(line[3]),  # bus
+                    int(line[1], 16),  # address
+                    bytes([int(b, 16) for b in line[5:]]),
+                )  # data
 
     return sorted(unsorted(), key=lambda m: m[0])
 
@@ -103,27 +106,30 @@ def write_log(csv_file, rlog_path, car_info, route_init_ts):
         def write_event(logMonoTime, **kwargs):
             """Write a new event to rlog."""
             log_capnp.Event.new_message(
-                logMonoTime=logMonoTime,
-                valid=True,
-                **kwargs).write(rlog)
+                logMonoTime=logMonoTime, valid=True, **kwargs
+            ).write(rlog)
 
         write_event(route_init_ts, initData=log_capnp.InitData.new_message())
 
         if car_info:
             # barebones carParams
             name, details = car_info
-            write_event(route_init_ts + 1,
-                        carParams=log_car.CarParams.new_message(
-                            carName=f"{name} {details}",
-                            # cabana uses this to find a matching DBC file in localstorage on load (maybe, hopefully)
-                            carFingerprint=name
-                        ))
+            write_event(
+                route_init_ts + 1,
+                carParams=log_car.CarParams.new_message(
+                    carName=f"{name} {details}",
+                    # cabana uses this to find a matching DBC file in localstorage on load (maybe, hopefully)
+                    carFingerprint=name,
+                ),
+            )
 
         # startOfRoute sentinel (Cabana seems to ignore this anyhow)
-        write_event(route_init_ts + 2,
-                    sentinel=log_capnp.Sentinel.new_message(
-                        type=log_capnp.Sentinel.SentinelType.startOfRoute)
-                    )
+        write_event(
+            route_init_ts + 2,
+            sentinel=log_capnp.Sentinel.new_message(
+                type=log_capnp.Sentinel.SentinelType.startOfRoute
+            ),
+        )
 
         # Read CAN messages the CSV CAN log and build Can Events for rlog
         dropped = 0
@@ -146,10 +152,8 @@ def write_log(csv_file, rlog_path, car_info, route_init_ts):
 
             can_data.append(
                 log_capnp.CanData.new_message(
-                    address=address,
-                    busTime=bus_time,
-                    dat=data,
-                    src=bus),  # I think that's what this one means
+                    address=address, busTime=bus_time, dat=data, src=bus
+                ),  # I think that's what this one means
             )
 
             # Each Event seems to contain up to 10ms of messages, but also
@@ -158,7 +162,7 @@ def write_log(csv_file, rlog_path, car_info, route_init_ts):
                 # Flush the can_data to an Event
                 if len(can_data) > 100:
                     # Even a very busy system shouldn't have this many messages in on event, may indicate a problem
-                    print(f'WARNING: Flushing {len(can_data)} messages @ {event_ts}')
+                    print(f"WARNING: Flushing {len(can_data)} messages @ {event_ts}")
                 write_event(event_ts, can=can_data)
                 event_ts = None
                 can_data = []
@@ -167,13 +171,15 @@ def write_log(csv_file, rlog_path, car_info, route_init_ts):
         if can_data:
             write_event(event_ts, can=can_data)
 
-        print(f'Dropped {dropped} CAN messages from before 0:00.000 in video')
+        print(f"Dropped {dropped} CAN messages from before 0:00.000 in video")
 
         # endOfRoute sentinel (Cabana seems to ignore this, also)
-        write_event(ts + 1,
-                    sentinel=log_capnp.Sentinel.new_message(
-                        type=log_capnp.Sentinel.SentinelType.endOfRoute)
-                    )
+        write_event(
+            ts + 1,
+            sentinel=log_capnp.Sentinel.new_message(
+                type=log_capnp.Sentinel.SentinelType.endOfRoute
+            ),
+        )
 
         # Write out a permanent compressed version of the temporary file
         with gzip.open(rlog_path, "wb", compresslevel=6) as rlog_gz:
@@ -203,28 +209,41 @@ def write_stream(video_file, route_dir):
             "Destination file exists. Delete to force transcode."
         )
     else:
-        print(f'Transcoding {video_file}...')
+        print(f"Transcoding {video_file}...")
         # Note: these options assume VAAPI accelerated h264 encoding is available & configured
-        res = subprocess.run([
+        cmd = [
             "ffmpeg",
-            "-hwaccel", "vaapi",
-            "-hwaccel_output_format", "vaapi",
-            "-i", video_file,
-            "-c:v", "h264_vaapi",
-            "-b:v", "500k",
-            "-vf", "scale_vaapi=w=526:h=330",
-            "-c:a", "copy",
-            "-r", "20",
-            "-hls_time", "60",
-            "-hls_list_size", "0",
-            "-hls_allow_cache", "1",
-            playlist_path],
-            capture_output=True,
-        )
+            "-hwaccel",
+            "vaapi",
+            "-hwaccel_output_format",
+            "vaapi",
+            "-i",
+            video_file,
+            "-c:v",
+            "h264_vaapi",
+            "-b:v",
+            "500k",
+            "-vf",
+            "scale_vaapi=w=526:h=330",
+            "-c:a",
+            "copy",
+            "-r",
+            "20",
+            "-hls_time",
+            "60",
+            "-hls_list_size",
+            "0",
+            "-hls_allow_cache",
+            "1",
+            playlist_path,
+        ]
+
+        res = subprocess.run(cmd, capture_output=True)
         if res.returncode == 0:
-            print('Transcoding finished.')
+            print("Transcoding finished.")
         else:
-            print(f'Transcoding failed. ffmpeg return code {res.returncode}')
+            print(f"Transcoding failed. ffmpeg return code {res.returncode}")
+            print(f'Command line: {" ".join(cmd)}')
             print(repr(res.stdout))
             print(repr(res.stderr))
             if os.path.exists(playlist_path):
@@ -234,12 +253,14 @@ def write_stream(video_file, route_dir):
 
 def make_index_file(routes_dir):
     """Write a routes.json index file with a list of route names."""
-    route_names = [os.path.basename(os.path.dirname(r)) for r in
-                   glob.glob(os.path.join(routes_dir, '*/route.json'))]
+    route_names = [
+        os.path.basename(os.path.dirname(r))
+        for r in glob.glob(os.path.join(routes_dir, "*/route.json"))
+    ]
 
-    with open(os.path.join(routes_dir, 'routes.json'), 'w') as f:
+    with open(os.path.join(routes_dir, "routes.json"), "w") as f:
         json.dump(route_names, f)
-    print(f'Found {len(route_names)} routes in directory')
+    print(f"Found {len(route_names)} routes in directory")
 
 
 def main():  # noqa: D103
