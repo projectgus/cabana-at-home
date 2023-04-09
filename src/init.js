@@ -62,9 +62,8 @@ export default function init() {
   let persistedDbc = null;
 
   if (routeFullName) {
-    const [dongleId, route] = routeFullName.split('|');
-    props.dongleId = dongleId;
-    props.name = route;
+    props.dongleId = "none"; // LOCAL HACK: was previously derived from routeFullName URL
+    props.name = routeFullName;
 
     persistedDbc = fetchPersistedDbc(routeFullName);
 

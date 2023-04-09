@@ -15,7 +15,7 @@ export const raw = {
     // It's not quite clear to me if there are expected to be as many log files as segments
     // or if these are just for the videos...
       logs: info.segment_numbers.map(function(n) {
-        return `${info.url}/rlog${n}.bz2`;
+        return `${info.url}/rlog${n}.gz`;
       }),
     };
 
@@ -27,7 +27,7 @@ export const raw = {
 export const drives = {
 
   getRouteInfo: async function(routeName) {
-    const route = routeName.split('|')[1];
+    const [dongleId, route] = routeName.split('|');
     const response = await fetch(`/routes/${route}/route.json`);
     return response.json();
   },
@@ -44,9 +44,9 @@ export const drives = {
 export const video= {
 
   getQcameraStreamUrl: function(routeName, exp, sig) {
-    console.log(`getQcameraStreamUrl ${routeName}`);
-    const route = routeName.split('|')[1];
-    return `/routes/${route}/qcamera.m3u8`;
+    const [dongleId, route] = routeName.split('|');
+    console.log(`getQcameraStreamUrl ${route}`);
+    return `/routes/${route}/video.m3u8`;
   }
 };
 
