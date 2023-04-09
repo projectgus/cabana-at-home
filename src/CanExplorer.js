@@ -1316,10 +1316,14 @@ export default class CanExplorer extends Component {
       >
         <div className="cabana-header">
           <a className="cabana-header-logo" href="/">
-            Comma Cabana
+            Cabana@Home
           </a>
           <div className="cabana-header-account">
-            {this.state.isGithubAuthenticated ? (
+            {<button onClick={this.showOnboarding} className="button button--dark button--inline">
+               Load a different route
+             </button>}
+
+            {/*this.state.isGithubAuthenticated ? (
               <div>
                 <p>GitHub Authenticated</p>
                 <p
@@ -1331,7 +1335,7 @@ export default class CanExplorer extends Component {
               </div>
             ) : (
               this.loginWithGithub()
-            )}
+            )*/}
           </div>
         </div>
         <div className="cabana-window">

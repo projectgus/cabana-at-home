@@ -33,23 +33,20 @@ export default class OnboardingModal extends Component {
   }
 
   componentDidMount() {
-    const script = document.createElement("script");
-    document.body.appendChild(script);
-    script.onload = () => {
-      window.AppleID.auth.init({
-        clientId : AuthConfig.APPLE_CLIENT_ID,
-        scope : AuthConfig.APPLE_SCOPES,
-        redirectURI : AuthConfig.APPLE_REDIRECT_URI,
-        state : AuthConfig.APPLE_STATE,
-      });
-    };
-    script.src = "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js";
-    script.async = true;
-    document.addEventListener('AppleIDSignInOnSuccess', (data) => {
-      const { code, state } = data.detail.authorization;
-      window.location = [AuthConfig.APPLE_REDIRECT_PATH, qs.stringify({ code, state })].join('?');
-    });
-    document.addEventListener('AppleIDSignInOnFailure', console.log);
+    // LOCAL HACK: Fetch the static 'routes' list and store it in state
+    console.log('Fetching routes.json');
+    fetch(`/routes/routes.json`) .then((res) => res.json())
+      .then(
+        (routes) => {
+          console.log('Fetched routes', routes);
+          this.setState({
+            routes
+          });
+        },
+        (error) => {
+          console.log(error)
+        }
+      );
   }
 
   attemptPandaConnection() {
@@ -126,28 +123,21 @@ export default class OnboardingModal extends Component {
   }
 
   renderOnboardingOptions() {
+    if (this.state.routes === undefined) {
+      return (
+        <div className="cabana-onboarding-modes">Loading...</div>
+      );
+    }
+
     return (
       <div className="cabana-onboarding-modes">
-        <div className="cabana-onboarding-mode">{this.renderLogin()}</div>
-        <div className="cabana-onboarding-mode">
-          <button
-            className={cx('button--secondary button--kiosk', {
-              'is-disabled':
-                !this.state.webUsbEnabled
-                || this.props.attemptingPandaConnection
-            })}
-            onClick={this.attemptPandaConnection}
-          >
-            <i className="fa fa-bolt" />
-            <strong>Launch Realtime Streaming</strong>
-            <sup>
-              Interactively stream car data over USB with
-              {' '}
-              <em>panda</em>
-            </sup>
-            {this.renderPandaEligibility()}
-          </button>
-        </div>
+        <ul>
+          {this.state.routes.map(route => {
+            const routeLink=`?route=${route}`;
+            return (
+              <li key={route}><a href={routeLink}>{route}</a></li>
+            );})}
+        </ul>
       </div>
     );
   }
@@ -205,9 +195,6 @@ export default class OnboardingModal extends Component {
   }
 
   renderModalContent() {
-    if (this.state.viewingUsbInstructions) {
-      return this.renderUsbInstructions();
-    }
     return this.renderOnboardingOptions();
   }
 
@@ -215,34 +202,18 @@ export default class OnboardingModal extends Component {
     return (
       <p>
         <span>
-          Don't have a
+          Thanks to
           {' '}
           <a
-            href="https://comma.ai/shop/products/panda"
+            href="https://comma.ai/"
             target="_blank"
             rel="noopener noreferrer"
           >
-            panda
-          </a>
-          ?
-          {' '}
-        </span>
-        <span>
-          <a
-            href="https://comma.ai/shop/products/panda"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Get one here
+            comma.ai
           </a>
           {' '}
         </span>
-        <span>
-          or
-          {' '}
-          <a href={`${window.location.href}?demo=1`}>try the demo</a>
-.
-        </span>
+        for open sourcing this excellent tool. All bugs & dodgy hacks likely added by me on top of their work.
       </p>
     );
   }
@@ -250,8 +221,8 @@ export default class OnboardingModal extends Component {
   render() {
     return (
       <Modal
-        title="Welcome to Cabana"
-        subtitle="Get started by selecting a drive from connect or enabling live mode"
+        title="Welcome to Cabana@Home"
+        subtitle="Get started by selecting a locally stored route"
         footer={this.renderModalFooter()}
         disableClose
         variations={['wide', 'dark']}

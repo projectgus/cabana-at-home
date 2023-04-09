@@ -300,12 +300,12 @@ export default class Meta extends Component {
             <div className="cabana-meta-header-action">
               <button onClick={this.props.showLoadDbc}>Load DBC</button>
             </div>
-            {this.saveable() && (
+            {/*this.saveable() && (
               <div className="cabana-meta-header-action">
                 <button onClick={this.props.saveLog}>Save Log</button>
               </div>
-            )}
-            {this.props.shareUrl ? (
+            )*/}
+            {/*this.props.shareUrl ? (
               <div
                 className="cabana-meta-header-action special-wide"
                 data-clipboard-text={this.props.shareUrl}
@@ -320,7 +320,7 @@ export default class Meta extends Component {
                   Copy Share Link
                 </a>
               </div>
-            ) : null}
+            ) : null*/}
             <div className="cabana-meta-header-action">
               <button onClick={this.props.showSaveDbc}>Save DBC</button>
             </div>
