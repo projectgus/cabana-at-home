@@ -17,6 +17,8 @@ capnp.remove_import_hook()
 log_capnp = capnp.load("cereal/log.capnp")
 log_car = capnp.load("cereal/car.capnp")
 
+SentinelType = log_capnp.Sentinel.SentinelType
+
 
 def make_route(car_info, logfile, videofile, sync, routes_dir):
     """Convert video & log CSV files to a "route" in a directory for Cabana."""
@@ -48,8 +50,8 @@ def make_route(car_info, logfile, videofile, sync, routes_dir):
 
     os.makedirs(route_dir, exist_ok=True)
 
-    write_log(logfile, os.path.join(route_dir, "rlog0.gz"), car_info, route_init_ts)
-    write_route_json(os.path.join(route_dir, "route.json"))
+    nlogs = write_logs(logfile, os.path.join(route_dir, "rlog"), car_info, route_init_ts)
+    write_route_json(os.path.join(route_dir, "route.json"), nlogs)
     write_stream(videofile, route_dir)
 
 
@@ -85,12 +87,15 @@ def read_csv_messages(csv_file):
     return sorted(unsorted(), key=lambda m: m[0])
 
 
-def write_log(csv_file, rlog_path, car_info, route_init_ts):
-    """Write an rlog file based on the CAN messages from csv_file."""
+def write_logs(csv_file, rlog_base, car_info, route_init_ts):
+    """Write one or more rlog files based on the CAN messages from csv_file."""
+    nlogs = 0
+
     with tempfile.TemporaryFile("a+b") as rlog:
         # Note: pycapnp doesn't support writing to a buffer object like a gzip
-        # or bz2 file, just to a plain file (uses fileno). So we write a plain
-        # temporary file 'rlog', then compress it at the end
+        # or bz2 file, just to a plain file (uses fileno). So we use a plain
+        # temporary file 'rlog', then periodically read its contents back
+        # out and compress it to a gzip file.
 
         # Write a dummy InitData that includes route_init_ts as its logMonoTime
         # cabana's rlog-downloader will use this as the start time for the route
@@ -109,6 +114,24 @@ def write_log(csv_file, rlog_path, car_info, route_init_ts):
                 logMonoTime=logMonoTime, valid=True, **kwargs
             ).write(rlog)
 
+        def write_sentinel(logMonoTime, sentinelType):
+            """Write a Sentinel marker event in the log.
+
+            Not clear if Cabana actually cares about these.
+            """
+            write_event(logMonoTime,
+                        sentinel=log_capnp.Sentinel.new_message(
+                            type=sentinelType))
+
+        # Flush log data so far to a new compressed file
+        def flush_rlog(nlogs):
+            with gzip.open('{}{}.gz'.format(rlog_base, nlogs), "wb", compresslevel=6) as rlog_gz:
+                rlog.seek(0)
+                rlog_gz.write(rlog.read())
+                rlog.truncate(0)
+                rlog.seek(0)
+            return nlogs + 1
+
         write_event(route_init_ts, initData=log_capnp.InitData.new_message())
 
         if car_info:
@@ -123,13 +146,7 @@ def write_log(csv_file, rlog_path, car_info, route_init_ts):
                 ),
             )
 
-        # startOfRoute sentinel (Cabana seems to ignore this anyhow)
-        write_event(
-            route_init_ts + 2,
-            sentinel=log_capnp.Sentinel.new_message(
-                type=log_capnp.Sentinel.SentinelType.startOfRoute
-            ),
-        )
+        write_sentinel(route_init_ts + 2, SentinelType.startOfRoute)
 
         # Read CAN messages the CSV CAN log and build Can Events for rlog
         dropped = 0
@@ -156,43 +173,52 @@ def write_log(csv_file, rlog_path, car_info, route_init_ts):
                 ),  # I think that's what this one means
             )
 
-            # Each Event seems to contain up to 10ms of messages, but also
-            # there are some weird chunks that seem to contain too many messages
+            # Aim for each Event to contain around 10ms of messages
             if ts - event_ts > 10_000_000:
                 # Flush the can_data to an Event
                 if len(can_data) > 100:
-                    # Even a very busy system shouldn't have this many messages in on event, may indicate a problem
+                    # Even a very busy system shouldn't have too many messages in one event, may indicate a problem
                     print(f"WARNING: Flushing {len(can_data)} messages @ {event_ts}")
                 write_event(event_ts, can=can_data)
+
+                # Aim for each rlogNN.gz file to contain up to 4MB of unencrypted log data
+                #
+                # (real comma.ai logs seem much bigger, maybe 30MB-40MB
+                # uncompressed. However they also contain a lot of other event types
+                # cabana ignores. Our logs are basically 100% CAN messages.)
+                if rlog.tell() > 4_000_000:
+                    write_sentinel(event_ts + 1, SentinelType.endOfSegment)
+                    nlogs = flush_rlog(nlogs)
+                    # initData & startOfSegment sentinel goes into start of next segment
+                    write_event(route_init_ts, initData=log_capnp.InitData.new_message())
+                    write_sentinel(event_ts + 2, SentinelType.startOfSegment)
+
                 event_ts = None
                 can_data = []
 
-        # Flush any events left at the end
+        # Create an event from any CAN messages left at the end
         if can_data:
             write_event(event_ts, can=can_data)
 
         print(f"Dropped {dropped} CAN messages from before 0:00.000 in video")
 
         # endOfRoute sentinel (Cabana seems to ignore this, also)
-        write_event(
-            ts + 1,
-            sentinel=log_capnp.Sentinel.new_message(
-                type=log_capnp.Sentinel.SentinelType.endOfRoute
-            ),
-        )
+        write_sentinel(ts + 1, SentinelType.endOfRoute)
 
-        # Write out a permanent compressed version of the temporary file
-        with gzip.open(rlog_path, "wb", compresslevel=6) as rlog_gz:
-            rlog.seek(0)
-            rlog_gz.write(rlog.read())
+        # Flush the events left at the end (at minimum, this is the sentinel event)
+        nlogs = flush_rlog(nlogs)
+
+        print(f'Wrote {nlogs} log segments for route')
+
+        return nlogs
 
 
-def write_route_json(json_path):
+def write_route_json(json_path, nlogs):
     """Write the "fake API" route.json file with some metadata about the route."""
     doc = {
         # used in local_hacks/api.js getRouteFiles() to generate the correct
-        # number of rlog files. Otherwise unused?
-        "segment_numbers": [0],
+        # number of rlog files to stream in. Otherwise unused?
+        "segment_numbers": list(range(nlogs)),
         "url": "/routes/{}".format(os.path.basename(os.path.dirname(json_path))),
     }
     with open(json_path, "w", encoding="utf8") as f:

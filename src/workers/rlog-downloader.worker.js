@@ -114,7 +114,7 @@ async function loadData(entry) {
       if (entry.options.routeInitTime == null) {
         entry.options.routeInitTime = msg.LogMonoTime / 1e9;
       }
-    } else if (entry.part === 0 && 'Frame' in msg) {
+    } else if (entry.part === 0 && 'Frame' in msg) { // Note: current log.capnp does not seem to support this event
       if (entry.options.firstFrameTime == null) {
         entry.options.firstFrameTime = msg.Frame.TimestampEof / 1e9;
       }
